@@ -1,0 +1,10 @@
+Revision history for Perl extension Data::Omap.
+
+0.01  Sun Jun  1 18:04:09 2008
+    - original version; created by h2xs 1.23 with options
+        -AX --skip-exporter --use-new-tests -n Data::Omap -b 5.8.0
+    r13 Added t/05-DO-pod.t
+    r12 Added POD, changed clone() to get_array()
+    r11 split up test file
+    r10 New import
+
