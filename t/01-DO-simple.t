@@ -29,8 +29,8 @@ is( "@keys", "c a b",
 is( "@keys", "c a b",
     "get_keys() for selected keys, data-ordered" );
 
-@pos = $omap->get_pos( qw( a b c ) ); # 1 is pos of 'a', 2 of 'b', 0 of 'c'
-is( "@pos", "1 2 0",
+@pos = $omap->get_pos( qw( a b c ) );
+is( Dumper(\@pos), "[{'a' => 1},{'b' => 2},{'c' => 0}]",
     "get_pos() for selected keys, parameter-ordered" );
 
 @array = $omap->get_array();

@@ -93,16 +93,17 @@ routine, but I wanted to see first how this implementation might work.
 
 =head1 VERSION
 
-Data::Omap version 0.01
+Data::Omap version 0.02
 
 =cut
 
 use strict;
 use warnings;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use Scalar::Util qw( reftype looks_like_number );
+use Carp;
 
 my $order;  # package global, see order() accessor
 
@@ -128,7 +129,7 @@ sub new {
     my( $class, $aref ) = @_;
     return bless [], $class unless $aref;
 
-    die "\$aref must be aref" unless reftype( $aref ) eq 'ARRAY';
+    croak "\$aref must be aref" unless reftype( $aref ) eq 'ARRAY';
     bless $aref, $class;
 }
 
@@ -201,7 +202,7 @@ sub order {
                 looks_like_number($_[0])&&looks_like_number($_[1])?
                 $_[1] < $_[0]: $_[1] lt $_[0] },
             }->{ $spec };
-        die "\$spec($spec) not recognized" unless defined $order;
+        croak "\$spec($spec) not recognized" unless defined $order;
     }
     return $order;
 }
@@ -232,7 +233,7 @@ If C<$pos> is not given, the key will be located and if found,
 the value set. If the key is not found, a new pair is added to the
 end or merged according to the defined C<order()>.
 
-Note that C<set()> will die if a duplicate key would result.  This
+Note that C<set()> will croak if a duplicate key would result.  This
 would only happen if C<$pos> is given and the C<$key> is found--but
 not at that position.
 
@@ -259,7 +260,7 @@ sub set {
     my $elem = { $key => $value };
 
     if( defined $pos and defined $found ) {
-        die "\$key($key) found, but not at \$pos($pos): duplicate keys not allowed"
+        croak "\$key($key) found, but not at \$pos($pos): duplicate keys not allowed"
             if $found != $pos;
         $self->[ $pos ] = $elem;  # pos == found
     }
@@ -365,7 +366,7 @@ there (possibly overriding a defined order), e.g.,
 If C<$pos> is not given, a new pair is added to the end or merged
 according to the defined C<order()>.
 
-Note that C<add()> will die if a duplicate key would result, i.e.,
+Note that C<add()> will croak if a duplicate key would result, i.e.,
 if the key being added is already in the object.
 
 Returns C<$value>.
@@ -377,7 +378,7 @@ sub add {
     return unless defined $key;
 
     my $found = $self->get_pos( $key );
-    die "\$key($key) found: duplicate keys not allowed" if defined $found;
+    croak "\$key($key) found: duplicate keys not allowed" if defined $found;
 
     my $elem = { $key => $value };
     if( defined $pos ) { splice @$self, $pos, 0, $elem }
@@ -446,12 +447,12 @@ found), regardless of context, e.g.,
  my @pos = $omap->get_pos( 'b' );  # (1)
  my $pos = $omap->get_pos( 'b' );  # 1
 
-If multiple keys, returns the positions in list context, the number
-of keys found in scalar context.  The positions are listed in the
-order that the keys were given (rather than in numerical order),
+If multiple keys, returns a list of hash refs in list context, the
+number of keys found in scalar context.  The positions are listed in
+the order that the keys were given (rather than in numerical order),
 e.g.,
 
- @pos        = $omap->get_pos( 'c', 'b' );       # @pos is (2, 1)
+ @pos        = $omap->get_pos( 'c', 'b' ); # @pos is ({c=>2},{b=>1})
  my $howmany = $omap->get_pos( 'A', 'b', 'c' );  # $howmany is 2
 
 Returns C<undef/()> if no keys given or object is empty.
@@ -478,7 +479,7 @@ sub get_pos {
             my ( $key ) = keys %{$self->[ $i ]};
             for ( @keys ) {
                 if( $key eq $_ ) {
-                    $ret{ $key } = $i;
+                    $ret{ $key } = { $key => $i };
                     last;
                 }
             }
@@ -596,9 +597,6 @@ if object is empty).
 This routine supports the tied hash FIRSTKEY method.
 
 =cut
-
-# $omap->firstkey()
-# returns first key
 
 sub firstkey {
     my( $self ) = @_;
