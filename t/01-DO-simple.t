@@ -6,10 +6,11 @@ use Test::More 'no_plan';
 use Data::Dumper;
 $Data::Dumper::Terse=1;
 $Data::Dumper::Indent=0;
+$Data::Dumper::Sortkeys=1;
 
 BEGIN { use_ok('Data::Omap') };
 
-my( $omap, @values, @keys, @array, $aref, @pos );
+my( $omap, @values, @keys, @array, $aref, $pos, %pos, $pos_href );
 
 $omap = Data::Omap->new( [ {c=>3}, {a=>1}, {b=>2}, ] );
 
@@ -29,9 +30,21 @@ is( "@keys", "c a b",
 is( "@keys", "c a b",
     "get_keys() for selected keys, data-ordered" );
 
-@pos = $omap->get_pos( qw( a b c ) );
-is( Dumper(\@pos), "[{'a' => 1},{'b' => 2},{'c' => 0}]",
-    "get_pos() for selected keys, parameter-ordered" );
+$pos = $omap->get_pos( 'a' );
+is( $pos, 1,
+    "get_pos()" );
+
+%pos = $omap->get_pos_hash();
+is( Dumper(\%pos), "{'a' => 1,'b' => 2,'c' => 0}",
+    "get_pos_hash(), all keys" );
+
+%pos = $omap->get_pos_hash( 'a' );
+is( Dumper(\%pos), "{'a' => 1}",
+    "get_pos_hash(), one key" );
+
+%pos = $omap->get_pos_hash( 'c', 'a' );
+is( Dumper(\%pos), "{'a' => 1,'c' => 0}",
+    "get_pos_hash(), multiple keys" );
 
 @array = $omap->get_array();
 is( Dumper(\@array), "[{'c' => 3},{'a' => 1},{'b' => 2}]",

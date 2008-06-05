@@ -1,5 +1,11 @@
 Revision history for Perl extension Data::Omap.
 
+0.04  Thu Jun  5 12:25:38 EDT 2008
+    - added use 5.008003; (from 5.8.0) based on cpan testing
+    - changed get_pos() to work with only one key
+    - added get_pos_hash() for handling multiple keys
+    - added SEE ALSO Tie::IxHash in pod (rt.cpan.org id=36484)
+
 0.03  Wed Jun  4 17:54:06 EDT 2008
     - validate incoming structure in new()
 

@@ -93,14 +93,15 @@ routine, but I wanted to see first how this implementation might work.
 
 =head1 VERSION
 
-Data::Omap version 0.03
+Data::Omap version 0.04
 
 =cut
 
+use 5.008003;
 use strict;
 use warnings;
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 use Scalar::Util qw( reftype looks_like_number );
 use Carp;
@@ -466,59 +467,80 @@ sub _add_ordered {
 
 #---------------------------------------------------------------------
 
-=head2 $omap->get_pos( @keys );
+=head2 $omap->get_pos( $key );
 
-Gets positions where keys are found.
+Gets position where a key is found.
 
-Accepts one or more keys.
+Accepts one key (any extras are silently ignored).  
 
-If one key is given, returns the position or undef (if key not
-found), regardless of context, e.g.,
+Returns the position or undef (if key not found), regardless of context, e.g.,
 
- my $omap    = Data::Omap->new( [{a=>1},{b=>2},{c=>3}] );
- my @pos = $omap->get_pos( 'b' );  # (1)
- my $pos = $omap->get_pos( 'b' );  # 1
+ my $omap = Data::Omap->new( [{a=>1},{b=>2},{c=>3}] );
+ my @pos  = $omap->get_pos( 'b' );  # (1)
+ my $pos  = $omap->get_pos( 'b' );  # 1
 
-If multiple keys, returns a list of hash refs in list context, the
-number of keys found in scalar context.  The positions are listed in
-the order that the keys were given (rather than in numerical order),
-e.g.,
-
- @pos        = $omap->get_pos( 'c', 'b' ); # @pos is ({c=>2},{b=>1})
- my $howmany = $omap->get_pos( 'A', 'b', 'c' );  # $howmany is 2
-
-Returns C<undef/()> if no keys given or object is empty.
+Returns C<undef/()> if no key given or object is empty.
 
 =cut
 
 sub get_pos {
-    my( $self, @keys ) = @_;
-    return unless @keys;
+    my( $self, $wantkey ) = @_;
+    return unless $wantkey;
     return unless @$self;
-    if( @keys == 1 ) {
-        my $wantkey = $keys[0];
-        for my $i ( 0 .. $#$self ) {
-            my ( $key ) = keys %{$self->[ $i ]};
-            if( $key eq $wantkey ) {
-                return $i;
-            }
+    for my $i ( 0 .. $#$self ) {
+        my ( $key ) = keys %{$self->[ $i ]};
+        if( $key eq $wantkey ) {
+            return $i;
         }
-        return;  # key not found
     }
-    else {
-        my( %ret, @ret );
+    return;  # key not found
+}
+
+#---------------------------------------------------------------------
+
+=head2 $omap->get_pos_hash( @keys );
+
+Gets positions where keys are found.
+
+Accepts zero or more keys.
+
+In list context, returns a hash of keys/positions found.  In scalar
+context, returns a hash ref to this hash.  If no keys given, all the
+positions are mapped in the hash.
+
+ my $omap     = Data::Omap->new( [{a=>1},{b=>2},{c=>3}] );
+ my %pos      = $omap->get_pos_hash( 'c', 'b' ); # %pos      is (b=>1,c=>2)
+ my $pos_href = $omap->get_pos_hash( 'c', 'b' ); # $pos_href is {b=>1,c=>2}
+
+If a given key is not found, it will not appear in the returned hash.
+
+Returns C<undef/()> if object is empty.
+
+=cut
+
+sub get_pos_hash {
+    my( $self, @keys ) = @_;
+    return unless @$self;
+    my %ret;
+    if( @keys ) {
         for my $i ( 0 .. $#$self ) {
             my ( $key ) = keys %{$self->[ $i ]};
             for ( @keys ) {
                 if( $key eq $_ ) {
-                    $ret{ $key } = { $key => $i };
+                    $ret{ $key } = $i;
                     last;
                 }
             }
         }
-        @ret = grep defined, @ret{ @keys };  # keys-order
-        return @ret;
     }
+    else {
+        for my $i ( 0 .. $#$self ) {
+            my ( $key ) = keys %{$self->[ $i ]};
+            $ret{ $key } = $i;
+        }
+    }
+    return %ret if wantarray;
+    \%ret;  # returned
 }
 
 #---------------------------------------------------------------------
@@ -849,4 +871,40 @@ sub SCALAR {
 1;  # 'use module' return value
 
 __END__
+
+=head1 SEE ALSO
+
+Tie::IxHash
+
+=over 8
+
+Use Tie::IxHash if what you need is an ordered hash in general.  The
+Data::Omap module does repeat many of Tie::IxHash's features.  What
+differs is that it operates directly on a specific type of data
+structure.  Whether this pans out in the long run remains to be seen.
+
+=back
+
+Data::Pairs
+
+=over 8
+
+The code in Data::Omap is the basis for that in the Data::Pairs module.
+Data::Pairs also operates on an ordered hash, but allows duplicate keys.
+
+=back
+
+=head1 AUTHOR
+
+Brad Baxter, E<lt>bmb@galib.uga.eduE<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2008 by Brad Baxter
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.8.8 or,
+at your option, any later version of Perl 5 you may have available.
+
+=cut
 
