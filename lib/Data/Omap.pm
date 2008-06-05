@@ -93,19 +93,20 @@ routine, but I wanted to see first how this implementation might work.
 
 =head1 VERSION
 
-Data::Omap version 0.02
+Data::Omap version 0.03
 
 =cut
 
 use strict;
 use warnings;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 use Scalar::Util qw( reftype looks_like_number );
 use Carp;
 
-my $order;  # package global, see order() accessor
+my $order;   # package global, see order() accessor
+our $errstr; # error message
 
 #---------------------------------------------------------------------
 
@@ -129,8 +130,39 @@ sub new {
     my( $class, $aref ) = @_;
     return bless [], $class unless $aref;
 
-    croak "\$aref must be aref" unless reftype( $aref ) eq 'ARRAY';
+    croak _errstr() unless _is_valid_omap( $aref );
     bless $aref, $class;
+}
+
+sub _is_valid_omap {
+    my( $aref ) = @_;
+    unless( $aref and ref( $aref ) and reftype( $aref ) eq 'ARRAY' ) {
+        $errstr = "Invalid omap: Not an array reference";
+        return;
+    }
+    my %seen;
+    for my $href ( @$aref ) {
+        unless( ref( $href ) eq 'HASH' ) {
+            $errstr = "Invalid omap: Not a hash reference";
+            return;
+        }
+        my @keys = keys %$href;
+        if( @keys > 1 ) {
+            $errstr = "Invalid omap: Not a single-key hash";
+            return;
+        }
+        if( $seen{ $keys[0] }++ ) {
+            $errstr = "Invalid omap: Duplicate key: '$keys[0]'";
+            return;
+        }
+    }
+    return 1;  # is valid
+}
+
+sub _errstr {
+    my $msg = $errstr;
+    $errstr = "";
+    $msg;  # returned
 }
 
 #---------------------------------------------------------------------
