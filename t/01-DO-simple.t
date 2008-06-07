@@ -62,6 +62,10 @@ $omap->set( a=>0 ); @values = $omap->get_values( qw( a b c ) );
 is( "@values", "3 0 2",
     "set() a value" );
 
+eval{ $omap->set( d=>4, 4 ); };
+like( $@, qr/\$pos\(4\) too large/,
+    "set(), pos too large" );
+
 # at pos 1, overwrite 'a'
 $omap->set( A=>1,1 ); @values = $omap->get_values( qw( A b c ) );
 is( "@values", "3 1 2",
@@ -70,6 +74,10 @@ is( "@values", "3 1 2",
 $omap->add( d=>4 ); @values = $omap->get_values( qw( A b c d ) );
 is( "@values", "3 1 2 4",
     "add() a value" );
+
+eval{ $omap->add( e=>5, 5 ); };
+like( $@, qr/\$pos\(5\) too large/,
+    "add(), pos too large" );
 
 # add at pos 2, between 'A' and 'b'
 $omap->add( a=>0,2 ); @values = $omap->get_values( qw( A a b c d ) );

@@ -1,5 +1,9 @@
 Revision history for Perl extension Data::Omap.
 
+0.05  Sat Jun  7 07:36:13 EDT 2008
+    - fixed typos in pod
+    - croak if pos too large in set() and add()
+
 0.04  Thu Jun  5 12:25:38 EDT 2008
     - added use 5.008003; (from 5.8.0) based on cpan testing
     - changed get_pos() to work with only one key

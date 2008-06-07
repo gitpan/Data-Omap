@@ -72,7 +72,7 @@ Normally, the underlying structure of an OO object is encapsulated
 and not directly accessible (when you play nice). One key
 implementation detail of Data::Omap is the desire that the underlying
 ordered mapping data structure (an array of single-key hashes) be
-publically maintained as such and directly accessible, if desired.
+publically maintained as such and directly accessible if desired.
 
 To that end, no attributes but the data itself are stored in the
 objects.  In the current version, that is why C<order()> is a class
@@ -93,7 +93,7 @@ routine, but I wanted to see first how this implementation might work.
 
 =head1 VERSION
 
-Data::Omap version 0.04
+Data::Omap version 0.05
 
 =cut
 
@@ -101,7 +101,7 @@ use 5.008003;
 use strict;
 use warnings;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 use Scalar::Util qw( reftype looks_like_number );
 use Carp;
@@ -188,7 +188,7 @@ Otherwise, accepts the predefined orderings: 'na', 'nd', 'sa', 'sd',
 'sna', and 'snd', or a custom code reference, e.g.
 
  Data::Omap->order( 'na' );   # numeric ascending
- Data::Omap->order( 'nd' );   # numeric ascending
+ Data::Omap->order( 'nd' );   # numeric descending
  Data::Omap->order( 'sa' );   # string  ascending
  Data::Omap->order( 'sd' );   # string  descending
  Data::Omap->order( 'sna' );  # string/numeric ascending
@@ -209,7 +209,7 @@ Returns the code reference if ordering is ON, a false value if OFF.
 
 Note, when object-level ordering is implemented, it is expected that
 the class-level option will still be available.  In that case, any
-new objects will inherite the class-level ordering unless overridden
+new objects will inherit the class-level ordering unless overridden
 at the object level.
 
 =cut
@@ -293,11 +293,15 @@ sub set {
     my $elem = { $key => $value };
 
     if( defined $pos and defined $found ) {
+        croak "\$pos($pos) too large" if $pos > $#$self+1;
         croak "\$key($key) found, but not at \$pos($pos): duplicate keys not allowed"
             if $found != $pos;
         $self->[ $pos ] = $elem;  # pos == found
     }
-    elsif( defined $pos )   { $self->[ $pos ]   = $elem }
+    elsif( defined $pos )   {
+        croak "\$pos($pos) too large" if $pos > $#$self+1;
+        $self->[ $pos ]   = $elem;
+    }
     elsif( defined $found ) { $self->[ $found ] = $elem }
     else                    { $self->_add_ordered( $key, $value ) }
 
@@ -313,7 +317,7 @@ Get a value or values.
 Regardless of parameters, if the object is empty, undef is returned in
 scalar context, an empty list in list context.
 
-If no paramaters, gets all the values.  In scalar context, gives
+If no parameters, gets all the values.  In scalar context, gives
 number of values in the object.
 
  my $omap = Data::Omap->new( [{a=>1},{b=>2},{c=>3}] );
@@ -414,8 +418,13 @@ sub add {
     croak "\$key($key) found: duplicate keys not allowed" if defined $found;
 
     my $elem = { $key => $value };
-    if( defined $pos ) { splice @$self, $pos, 0, $elem }
-    else               { $self->_add_ordered( $key, $value ) }
+    if( defined $pos ) {
+        croak "\$pos($pos) too large" if $pos > $#$self+1;
+        splice @$self, $pos, 0, $elem;
+    }
+    else {
+        $self->_add_ordered( $key, $value );
+    }
 
     $value;  # returned
 }
@@ -755,7 +764,7 @@ sub clear {
 # perltie methods
 #---------------------------------------------------------------------
 
-# XXX Because of the inefficencies in nextkey(), keys %hash and
+# XXX Because of the inefficiencies in nextkey(), keys %hash and
 # values %hash # may be very slow.
 # Consider using (tied %hash)->get_keys() or ->get_values() instead
 
@@ -844,7 +853,7 @@ sub NEXTKEY {
 #---------------------------------------------------------------------
 # SCALAR this
 # This is called when the hash is evaluated in scalar context.
-# In order to mimic the behaviour of untied hashes, this method should
+# In order to mimic the behavior of untied hashes, this method should
 # return a false value when the tied hash is considered empty.
 
 sub SCALAR {
@@ -896,7 +905,7 @@ Data::Pairs also operates on an ordered hash, but allows duplicate keys.
 
 =head1 AUTHOR
 
-Brad Baxter, E<lt>bmb@galib.uga.eduE<gt>
+Brad Baxter, E<lt>bbaxter@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
