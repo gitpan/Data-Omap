@@ -35,6 +35,20 @@ Data::Omap - Perl module to implement ordered mappings
  my @keys   = keys %omap;      # $omap->get_keys() is faster 
  my @values = values %omap;    # $omap->get_values() is faster
  my @slice  = @omap{qw(c b)};  # (3, 2) (slice values are parameter-ordered)
+
+ # Non-OO style
+
+ use Data::Omap ':ALL';
+ 
+ my $omap = [{a=>1},{b=>2},{c=>3}];  # new-ish, but not blessed
+
+ omap_set( $omap, a => 0 );        # (pass omap as first parameter)
+ omap_add( $omap, b2 => 2.5, 2 );  # insert at position 2 (between b and c)
+ 
+ my $value  = omap_get_values( $omap, 'c' );      # 3
+ my @keys   = omap_get_keys( $omap );             # (a, b, b2, c)
+ my @values = omap_get_values( $omap );           # (0, 2, 2.5, 3)
+ my @subset = omap_get_values( $omap, qw(c b) );  # (2, 3) (values are data-ordered)
  
  # There are more methods/options, see below.
 
@@ -93,7 +107,7 @@ routine, but I wanted to see first how this implementation might work.
 
 =head1 VERSION
 
-Data::Omap version 0.05
+Data::Omap version 0.06
 
 =cut
 
@@ -101,10 +115,29 @@ use 5.008003;
 use strict;
 use warnings;
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 use Scalar::Util qw( reftype looks_like_number );
 use Carp;
+use Exporter qw( import );
+our @EXPORT_OK = qw(
+    omap_set    omap_get_values omap_get_keys
+    omap_exists omap_delete     omap_clear 
+    omap_add    omap_order      omap_get_pos
+    omap_get_pos_hash omap_get_array
+    omap_is_valid     omap_errstr
+    );
+our %EXPORT_TAGS = (
+    STD => [qw( 
+    omap_set    omap_get_values omap_get_keys
+    omap_exists omap_delete     omap_clear )],
+    ALL => [qw(
+    omap_set    omap_get_values omap_get_keys
+    omap_exists omap_delete     omap_clear 
+    omap_add    omap_order      omap_get_pos
+    omap_get_pos_hash omap_get_array
+    omap_is_valid     omap_errstr )],
+    );
 
 my $order;   # package global, see order() accessor
 our $errstr; # error message
@@ -131,11 +164,11 @@ sub new {
     my( $class, $aref ) = @_;
     return bless [], $class unless $aref;
 
-    croak _errstr() unless _is_valid_omap( $aref );
+    croak omap_errstr() unless omap_is_valid( $aref );
     bless $aref, $class;
 }
 
-sub _is_valid_omap {
+sub omap_is_valid {
     my( $aref ) = @_;
     unless( $aref and ref( $aref ) and reftype( $aref ) eq 'ARRAY' ) {
         $errstr = "Invalid omap: Not an array reference";
@@ -160,7 +193,7 @@ sub _is_valid_omap {
     return 1;  # is valid
 }
 
-sub _errstr {
+sub omap_errstr {
     my $msg = $errstr;
     $errstr = "";
     $msg;  # returned
@@ -168,7 +201,7 @@ sub _errstr {
 
 #---------------------------------------------------------------------
 
-=head2 Data::Omap->order();
+=head2 Data::Omap->order( [$predefined_ordering | coderef] );
 
 When ordering is ON, new key/value pairs will be added in the
 specified order.  When ordering is OFF (the default), new pairs
@@ -214,6 +247,7 @@ at the object level.
 
 =cut
 
+*omap_order = \&order;
 sub order {
     my( $class, $spec ) = @_;  # class not actually used ...
     return $order unless defined $spec;
@@ -275,6 +309,7 @@ Returns C<$value> (as a nod toward $hash{$key}=$value, which
 
 =cut
 
+*omap_set = \&set;
 sub set {
     my( $self, $key, $value, $pos ) = @_;
     return unless defined $key;
@@ -289,7 +324,7 @@ sub set {
     # undef def   -> set key/value at found
     # undef undef -> add key/value (according to order)
 
-    my $found = $self->get_pos( $key );
+    my $found = omap_get_pos( $self, $key );
     my $elem = { $key => $value };
 
     if( defined $pos and defined $found ) {
@@ -303,7 +338,7 @@ sub set {
         $self->[ $pos ]   = $elem;
     }
     elsif( defined $found ) { $self->[ $found ] = $elem }
-    else                    { $self->_add_ordered( $key, $value ) }
+    else                    { omap_add_ordered( $self, $key, $value ) }
 
     $value;  # returned
 }
@@ -343,6 +378,7 @@ The hash slice behavior is available if you use C<tie>, see below.
 
 =cut
 
+*omap_get_values = \&get_values;
 sub get_values {
     my( $self, @keys ) = @_;
     return unless @$self;
@@ -410,11 +446,12 @@ Returns C<$value>.
 
 =cut
 
+*omap_add = \&add;
 sub add {
     my( $self, $key, $value, $pos ) = @_;
     return unless defined $key;
 
-    my $found = $self->get_pos( $key );
+    my $found = omap_get_pos( $self, $key );
     croak "\$key($key) found: duplicate keys not allowed" if defined $found;
 
     my $elem = { $key => $value };
@@ -423,7 +460,7 @@ sub add {
         splice @$self, $pos, 0, $elem;
     }
     else {
-        $self->_add_ordered( $key, $value );
+        omap_add_ordered( $self, $key, $value );
     }
 
     $value;  # returned
@@ -431,7 +468,7 @@ sub add {
 
 #---------------------------------------------------------------------
 
-=head2 $omap->_add_ordered( $key => $value );
+=head2 omap_add_ordered( $omap, $key => $value );
 
 Private routine used by C<set()> and C<add()>.
 
@@ -447,7 +484,7 @@ Has no defined return value.
 
 =cut
 
-sub _add_ordered {
+sub omap_add_ordered {
     my( $self, $key, $value ) = @_;
     my $elem = { $key => $value };
 
@@ -492,6 +529,7 @@ Returns C<undef/()> if no key given or object is empty.
 
 =cut
 
+*omap_get_pos = \&get_pos;
 sub get_pos {
     my( $self, $wantkey ) = @_;
     return unless $wantkey;
@@ -527,6 +565,7 @@ Returns C<undef/()> if object is empty.
 
 =cut
 
+*omap_get_pos_hash = \&get_pos_hash;
 sub get_pos_hash {
     my( $self, @keys ) = @_;
     return unless @$self;
@@ -575,6 +614,7 @@ order found in the object, e.g.,
 
 =cut
 
+*omap_get_keys = \&get_keys;
 sub get_keys {
     my( $self, @keys ) = @_;
     return unless @$self;
@@ -626,6 +666,7 @@ are references, the references would be copied, not the referents).
 
 =cut
 
+*omap_get_array = \&get_array;
 sub get_array {
     my( $self, @keys ) = @_;
     return unless @$self;
@@ -708,10 +749,11 @@ be called directly, too.
 
 =cut
 
+*omap_exists = \&exists;
 sub exists {
     my( $self, $key ) = @_;
     return unless @$self;
-    return defined $self->get_pos( $key );
+    return defined omap_get_pos( $self, $key );
 }
 
 #---------------------------------------------------------------------
@@ -728,12 +770,13 @@ directly, too.
 
 =cut
 
+*omap_delete = \&delete;
 sub delete {
     my( $self, $key ) = @_;
     return unless defined $key;
     return unless @$self;
 
-    my $found = $self->get_pos( $key );
+    my $found = omap_get_pos( $self, $key );
     return unless defined $found;
 
     my $value = $self->[ $found ]->{ $key };
@@ -755,6 +798,7 @@ directly, too.
 
 =cut
 
+*omap_clear = \&clear;
 sub clear {
     my( $self ) = @_;
     @$self = ();
@@ -880,6 +924,148 @@ sub SCALAR {
 1;  # 'use module' return value
 
 __END__
+
+=head1 NON-OO STYLE
+
+An ordered mapping (as defined here) is an array of single-key
+hashes.  It is possible to manipulate an ordered mapping directly
+without first blessing it with C<new()>.  Most methods have a
+corresponding exportable subroutine named with the prefix, C<omap_>,
+e.g., C<omap_set()>, C<omap_get_keys()>, etc.
+
+To call these subroutines, pass the array reference as the first
+parameter, e.g., instead of doing C<< $omap->set( a => 1) >>, do C<<
+omap_set( $omap, a => 1) >>.
+
+=head2 Exporting
+
+Nothing is exported by default.  All subroutines may be exported
+using C<:ALL>, e.g.,
+
+ use Data::Omap ':ALL';
+
+They are shown below.
+
+A subset may be exported using C<:STD>, e.g.,
+
+ use Data::Omap ':STD';
+
+This subset includes
+C<omap_set()>
+C<omap_get_values()>
+C<omap_get_keys()>
+C<omap_exists()>
+C<omap_delete()>
+C<omap_clear()>
+
+=head2 C<new> without C<new()>
+
+To create an ordered mapping from scratch, simply assign an empty
+array ref, e.g.,
+
+ my $omap = [];
+
+=head2 omap_order( $omap[, $predefined_ordering | coderef] );
+
+(See C<< Data::Omap->order() >> above.)
+
+ omap_order( $omap, 'na' );   # numeric ascending
+ omap_order( $omap, 'nd' );   # numeric descending
+ omap_order( $omap, 'sa' );   # string  ascending
+ omap_order( $omap, 'sd' );   # string  descending
+ omap_order( $omap, 'sna' );  # string/numeric ascending
+ omap_order( $omap, 'snd' );  # string/numeric descending
+ omap_order( $omap, sub{ int($_[0]/100) < int($_[1]/100) } );  # code
+
+=head2 omap_set( $omap, $key => $value[, $pos] );
+
+(See C<< $omap->set() >> above.)
+
+ my $omap = [{a=>1},{b=>2}];
+ omap_set( $omap, c => 3, 0 );  # omap is now [{c=>3},{b=>2}]
+
+=head2 omap_get_values( $omap[, $key[, @keys]] );
+
+(See C<< $omap->get_values() >> above.)
+
+ my $omap = [{a=>1},{b=>2},{c=>3}];
+ my @values  = omap_get_values( $omap );  # (1, 2, 3)
+ my $howmany = omap_get_values( $omap );  # 3
+ 
+ @values   = omap_get_values( $omap, 'b' );  # (2)
+ my $value = omap_get_values( $omap, 'b' );  # 2
+ 
+ @values  = omap_get_values( $omap, 'c', 'b', 'A' );  # (2, 3)
+ $howmany = omap_get_values( $omap, 'c', 'b', 'A' );  # 2
+
+=head2 omap_add( $omap, $key => $value[, $pos] );
+
+(See C<< $omap->add() >> above.)
+
+ my $omap = [{a=>1},{b=>2}];
+ omap_add( $omap, c => 3, 1 );  # omap is now [{a=>1},{c=>3},{b=>2}]
+
+=head2 omap_get_pos( $omap, $key );
+
+(See C<< $omap->get_pos() >> above.)
+
+ my $omap = [{a=>1},{b=>2},{c=>3}];
+ my @pos  = omap_get_pos( $omap, 'b' );  # (1)
+ my $pos  = omap_get_pos( $omap, 'b' );  # 1
+
+=head2 omap_get_pos_hash( $omap[, @keys] );
+
+(See C<< $omap->get_pos_hash() >> above.)
+
+ my $omap     = [{a=>1},{b=>2},{c=>3}];
+ my %pos      = omap_get_pos_hash( $omap, 'c', 'b' ); # %pos      is (b=>1,c=>2)
+ my $pos_href = omap_get_pos_hash( $omap, 'c', 'b' ); # $pos_href is {b=>1,c=>2}
+
+=head2 omap_get_keys( $omap[, @keys] );
+
+(See C<< $omap->get_keys() >> above.)
+
+ my $omap    = [{a=>1},{b=>2},{c=>3}];
+ my @keys    = omap_get_keys( $omap );  # @keys is (a, b, c)
+ my $howmany = omap_get_keys( $omap );  # $howmany is 3
+
+ @keys    = omap_get_keys( $omap, 'c', 'b', 'A' );  # @keys is (b, c)
+ $howmany = omap_get_keys( $omap, 'c', 'b', 'A' );  # $howmany is 2
+
+=head2 omap_get_array( $omap[, @keys] );
+
+(See C<< $omap->get_array() >> above.)
+
+ my $omap    = [{a=>1},{b=>2},{c=>3}];
+ my @array   = omap_get_array( $omap );  # @array is ({a=>1}, {b=>2}, {c=>3})
+ my $aref    = omap_get_array( $omap );  # $aref  is [{a=>1}, {b=>2}, {c=>3}]
+
+ @array = omap_get_array( $omap, 'c', 'b', 'A' );  # @array is ({b->2}, {c=>3})
+ $aref  = omap_get_array( $omap, 'c', 'b', 'A' );  # @aref  is [{b->2}, {c=>3}]
+
+=head2 omap_exists( $omap, $key );
+
+(See C<< $omap->exists() >> above.)
+
+ my $bool = omap_exists( $omap, 'a' );
+
+=head2 omap_delete( $omap, $key );
+
+(See C<< $omap->delete() >> above.)
+
+ omap_delete( $omap, 'a' );
+
+=head2 omap_clear( $omap );
+
+(See C<< $omap->clear() >> above.)
+
+ omap_clear( $omap );
+
+Or simply:
+
+ @$omap = ();
+
+=cut
 
 =head1 SEE ALSO
 

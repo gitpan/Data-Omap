@@ -1,5 +1,9 @@
 Revision history for Perl extension Data::Omap.
 
+0.06  Tue Jun 10 11:48:07 EDT 2008
+    - added exporting of non-oo aliases for methods
+    - added tests to MANIFEST
+
 0.05  Sat Jun  7 07:36:13 EDT 2008
     - fixed typos in pod
     - croak if pos too large in set() and add()
